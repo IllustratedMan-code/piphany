@@ -8,6 +8,7 @@ mod vm;
 
 use crate::debug_utils::Runner;
 use clap::Parser;
+use steel::SteelErr;
 use steel_repl::colored::Colorize;
 use vm::engine;
 
@@ -27,10 +28,10 @@ struct Cli {
 }
 
 /// The entrypoint function for piper
-fn main() {
+fn main() -> Result<(), SteelErr>{
     let args = Cli::parse();
-    let mut engine = engine(Some(args.config));
-    engine
+    let mut engine = engine(Some(args.config))?;
+    engine // this block makes toying with the repl easier, will remove eventually
         .run_builtin_or_print_error(
             include_str!("steel-modules/main.scm"),
             "builtin/main.scm",
@@ -44,8 +45,9 @@ fn main() {
     } else {
         let dag = match derivation_graph::extract_graph(&mut engine){
             Ok(v) => v,
-            Err(e) => {engine.raise_error(e); return}
+            Err(e) => {engine.raise_error(e); return Ok(())}
         };
         dag.run().unwrap_or_else(|e| println!("{}: {}", "Error".red().bold(), e));
     }
+    Ok(())
 }

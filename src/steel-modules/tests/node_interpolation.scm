@@ -1,12 +1,19 @@
-(require-builtin process/dag as dag.)
-
-(define proc1 (process
- (hash 'name "proc1"
-       'script "
-        echo hi there")))
 
 
-(define proc2 (process
- (hash 'name "proc2"
-       'script "
-        echo ${proc1}")))
+(define proc1
+  (process!
+   name : "process-1"
+   script : #<<''
+     echo "hi there" > {{out}}
+   ''))
+
+
+(define proc2
+  (process!
+   name : "process-2"
+   script : #<<''
+     cat {{proc1} > ${out}}
+   ''))
+
+
+

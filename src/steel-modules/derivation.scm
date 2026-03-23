@@ -1,6 +1,5 @@
 
-(provide process
-	 process!
+(provide process!
 	 file!
 	 output!
 	 count-nodes
@@ -13,6 +12,8 @@
 	 subset
 	 DG::with-column
 	 DG::Dataframe::into_derivation
+	 ;;hash-helper
+	 ;;bindings-helper
 	 )
 
 
@@ -46,6 +47,10 @@
     derivation
     ))
 
+
+;; need to report bugs here, looks like syntax case macros don't get picked up by the
+;; module system correctly
+;; errors are also not reported correctly
 (define-syntax subset!
   (lambda (stx)
     (syntax-case stx ()
@@ -55,11 +60,11 @@
        (begin
 	 (if
 	  (string? (syntax->datum #'string))
-	  #'(subset df (string-append "(" string ")"))
-	  (symbol->string (syntax->datum #'(string))))
-	  ))
+	  #'(subset df string)
+	  #`(subset df #,(symbol->string (syntax->datum #'string)))
+	  )))
       ((_ df cond ...)
-       (symbol->string (syntax->datum #'(cond ...))))
+       #`(subset df #,(symbol->string (syntax->datum #'(cond ...)))))
       )))
 
 (define-syntax process!

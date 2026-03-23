@@ -4,6 +4,8 @@
 # emacs autosaves
 .#*
 
+\#*#
+
 # Added by cargo
 
 /target

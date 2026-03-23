@@ -109,12 +109,11 @@ impl Dataframe {
         mut self,
         expression: String,
     ) -> Result<Dataframe, SteelErr> {
+        let expression = format!("({})", expression);
         let lexes = subset_lexer(expression);
-        println!("{:?}", lexes);
         let parsed = SubsetParser::new(lexes.clone()?).parse();
         let expr = subset_exec(&self, parsed?);
         let lazy_df = self.frame.lazy();
-        println!("polars expr: {:?}", expr.clone()?);
         self.frame = lazy_df.filter(expr?).collect().map_err(|x| {
             SteelErr::new(steel::rerrs::ErrorKind::Generic, x.to_string())
         })?;
@@ -313,7 +312,6 @@ impl SubsetParser {
     fn parse_expr(&mut self) -> Result<SubsetExpr, SteelErr> {
         let mut left = self.parse();
         loop {
-            println!("left: {:?}", left.clone()?);
             let op = match self.peek() {
                 Some(SubsetToken::Gt)
                 | Some(SubsetToken::Lt)
@@ -355,11 +353,8 @@ impl SubsetParser {
             match t {
                 SubsetToken::LParen => {
                     self.next(); // eat '('
-                    println!("peek after lparen: {:?}", self.peek());
                     let e = self.parse_expr();
-                    println!("peek after expr: {:?}", self.peek());
                     self.next();
-                    println!("peek after eat: {:?}", self.peek());
                     expr = e;
                 }
                 SubsetToken::Column(_) => {
@@ -389,7 +384,6 @@ impl SubsetParser {
 }
 
 fn subset_exec(df: &Dataframe, ast: SubsetExpr) -> Result<Expr, SteelErr> {
-    println!("ast: {:?}", ast);
     match ast {
         SubsetExpr::Value(v) => match v {
             SubsetToken::Number(n) => Ok(lit(n)),
@@ -451,7 +445,7 @@ fn hash_frame(frame: &DataFrame) -> Result<DerivationHash, String> {
     let mut hashes = Vec::<u64>::new();
 
     for col in columns {
-        col.vec_hash_combine(hasher.clone(), &mut hashes);
+        col.vec_hash(hasher.clone(), &mut hashes).map_err(|x| x.to_string())?;
     }
 
     Ok(DerivationHash(

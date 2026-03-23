@@ -3843,7 +3843,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "steel-core"
 version = "0.8.2"
-source = "git+https://github.com/mattwparas/steel.git?branch=master#6a0de2453c5f6ea9be7fe6a3f5f4e4c634e0701b"
+source = "git+https://github.com/mattwparas/steel.git?branch=master#c313c7ee3e311ac25908c856dda71473879179a1"
 dependencies = [
  "abi_stable",
  "arc-swap",
@@ -3906,7 +3906,7 @@ dependencies = [
 [[package]]
 name = "steel-derive"
 version = "0.8.2"
-source = "git+https://github.com/mattwparas/steel.git?branch=master#6a0de2453c5f6ea9be7fe6a3f5f4e4c634e0701b"
+source = "git+https://github.com/mattwparas/steel.git?branch=master#c313c7ee3e311ac25908c856dda71473879179a1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3916,7 +3916,7 @@ dependencies = [
 [[package]]
 name = "steel-gen"
 version = "0.8.2"
-source = "git+https://github.com/mattwparas/steel.git?branch=master#6a0de2453c5f6ea9be7fe6a3f5f4e4c634e0701b"
+source = "git+https://github.com/mattwparas/steel.git?branch=master#c313c7ee3e311ac25908c856dda71473879179a1"
 dependencies = [
  "codegen",
  "serde",
@@ -3940,7 +3940,7 @@ dependencies = [
 [[package]]
 name = "steel-parser"
 version = "0.8.2"
-source = "git+https://github.com/mattwparas/steel.git?branch=master#6a0de2453c5f6ea9be7fe6a3f5f4e4c634e0701b"
+source = "git+https://github.com/mattwparas/steel.git?branch=master#c313c7ee3e311ac25908c856dda71473879179a1"
 dependencies = [
  "compact_str 0.8.1",
  "dashmap",
@@ -3961,7 +3961,7 @@ dependencies = [
 [[package]]
 name = "steel-quickscope"
 version = "0.3.2"
-source = "git+https://github.com/mattwparas/steel.git?branch=master#6a0de2453c5f6ea9be7fe6a3f5f4e4c634e0701b"
+source = "git+https://github.com/mattwparas/steel.git?branch=master#c313c7ee3e311ac25908c856dda71473879179a1"
 dependencies = [
  "indexmap 2.13.0",
  "smallvec",
@@ -3970,7 +3970,7 @@ dependencies = [
 [[package]]
 name = "steel-rc"
 version = "0.8.2"
-source = "git+https://github.com/mattwparas/steel.git?branch=master#6a0de2453c5f6ea9be7fe6a3f5f4e4c634e0701b"
+source = "git+https://github.com/mattwparas/steel.git?branch=master#c313c7ee3e311ac25908c856dda71473879179a1"
 dependencies = [
  "dashmap",
  "parking_lot",
@@ -3980,7 +3980,7 @@ dependencies = [
 [[package]]
 name = "steel-repl"
 version = "0.8.2"
-source = "git+https://github.com/mattwparas/steel.git?branch=master#6a0de2453c5f6ea9be7fe6a3f5f4e4c634e0701b"
+source = "git+https://github.com/mattwparas/steel.git?branch=master#c313c7ee3e311ac25908c856dda71473879179a1"
 dependencies = [
  "colored",
  "crossbeam-utils",

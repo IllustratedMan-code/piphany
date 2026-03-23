@@ -1,32 +1,32 @@
 use super::derivation_graph::DerivationGraph;
-use steel::steel_vm::engine::Engine;
+use steel::{steel_vm::engine::Engine, SteelErr};
 use super::config::Config;
 use crate::bindings;
 mod tester_functions;
 mod convenience_functions;
 
-pub fn engine(config_path: Option<std::path::PathBuf>) -> Engine {
+pub fn engine(config_path: Option<std::path::PathBuf>) -> Result<Engine,  SteelErr> {
     let mut vm = Engine::new();
     bindings::register_bindings(&mut vm);
     let  c = Config::new(config_path);
     c.register_params(&mut vm);
-    DerivationGraph::init(&mut vm, c);
+    DerivationGraph::init(&mut vm, c)?;
     convenience_functions::register_steel_functions(&mut vm);
     tester_functions::register_steel_functions(&mut vm);
-    vm
+    Ok(vm)
 }
 
 
-macro_rules! test_scm_file {
-    ($file:expr) => {{
-        let mut e = engine(None);
-        e.run(include_str!($file)).expect("Failed Test");
-    }};
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    macro_rules! test_scm_file {
+        ($file:expr) => {{
+            let mut e = engine(None).unwrap();
+            e.run(include_str!($file)).expect("Failed Test");
+        }};
+    }
 
     #[test]
     fn basic_interpolations() {
@@ -38,9 +38,10 @@ mod tests {
         test_scm_file!("steel-modules/tests/node_interpolation.scm");
 
     }
-
     #[test]
-    fn cycle_panic() {
-        test_scm_file!("steel-modules/tests/cycle_panic.scm");
+    fn parameterized_derivation() {
+        test_scm_file!("steel-modules/tests/parameterized_derivation.scm");
+
     }
+
 }

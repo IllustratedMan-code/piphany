@@ -159,7 +159,7 @@ impl Process {
     pub fn script(&self) -> String {
             self.script
                 .to_string()
-                .replace(super::super::OUT_PLACEHOLDER, "../out")
+                .replace(super::super::OUT_PLACEHOLDER, &self.hash.to_string())
     }
 
     pub fn display(&self) -> DisplayTable {
