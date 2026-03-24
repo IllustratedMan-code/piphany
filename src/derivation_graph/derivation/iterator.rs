@@ -1,4 +1,4 @@
-use super::{DerivationHash, DisplayTable, Iterator};
+use super::{DisplayTable, Iterator};
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::{ContentArrangement, Table};

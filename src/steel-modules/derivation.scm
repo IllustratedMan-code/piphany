@@ -9,11 +9,8 @@
 	 DG::graph
 	 read-csv
 	 select
-	 subset
 	 DG::with-column
 	 DG::Dataframe::into_derivation
-	 ;;hash-helper
-	 ;;bindings-helper
 	 )
 
 
@@ -60,7 +57,7 @@
        (begin
 	 (if
 	  (string? (syntax->datum #'string))
-	  #'(subset df string)
+	  #`(subset df string)
 	  #`(subset df #,(symbol->string (syntax->datum #'string)))
 	  )))
       ((_ df cond ...)

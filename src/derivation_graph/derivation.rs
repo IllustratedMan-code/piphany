@@ -1,9 +1,5 @@
-use comfy_table::modifiers::UTF8_ROUND_CORNERS;
-use comfy_table::presets::UTF8_FULL;
-use comfy_table::{ContentArrangement, Table};
+use comfy_table::{Table};
 use process::scriptstring::ScriptString;
-use regex::bytes::Regex;
-use std::fmt::Display;
 use std::path::PathBuf;
 use std::{
     collections::HashMap, hash::Hash,
@@ -12,12 +8,10 @@ use steel::steel_vm::builtin::BuiltInModule;
 use steel::steel_vm::register_fn::RegisterFn;
 use steel::{
     SteelVal,
-    rvals::{Custom, FromSteelVal, IntoSteelVal},
+    rvals::{Custom},
 };
 
-use crate::config::{Config, ParamValue};
 pub mod evaluator;
-use sha2::Digest;
 pub mod dataframe;
 pub mod file;
 pub mod output;
@@ -36,7 +30,9 @@ pub enum Derivation {
     Output(Output),
     Dataframe(Dataframe),
     Iterator(Iterator),
-    Test(Test)
+    Test(Test),
+    DataframeCsv(DataframeCsv),
+    DataframeDB(DataframeDB),
 }
 
 
@@ -49,7 +45,9 @@ impl Derivation {
             Derivation::Output(v) => v.hash.clone(),
             Derivation::Dataframe(v) => v.hash.clone(),
             Derivation::Iterator(v) => v.hash.clone(),
-            Derivation::Test(v) => v.hash.clone()
+            Derivation::Test(v) => v.hash.clone(),
+            Derivation::DataframeCsv(v) => v.hash.clone(),
+            Derivation::DataframeDB(v) => v.hash.clone()
         }
     }
     pub fn inputs(&self) -> Option<Vec<DerivationHash>> {
@@ -58,6 +56,8 @@ impl Derivation {
             Derivation::File(_) => None,
             Derivation::Output(v) => Some(v.inward_edges.clone()),
             Derivation::Dataframe(v) => Some(v.derivations.clone()),
+            Derivation::DataframeCsv(v) => Some(vec![v.frame.hash.clone()]),
+            Derivation::DataframeDB(v) => Some(v.frames.iter().map(|x|x.hash.clone()).collect()),
             Derivation::Iterator(v) => Some(v.inward_edges.clone()),
             Derivation::Test(v) => Some(v.inward_edges.clone()),
         }
@@ -77,6 +77,8 @@ impl Derivation {
             Derivation::File(v) => v.display(),
             Derivation::Output(v) => v.display(),
             Derivation::Dataframe(v) => v.display(),
+            Derivation::DataframeCsv(v) => v.frame.display(),
+            Derivation::DataframeDB(v) => v.display(),
             Derivation::Iterator(v) => v.display(),
             Derivation::Test(v) => v.display()
         }
@@ -98,6 +100,12 @@ impl steel::rvals::Custom for Derivation {
             Derivation::File(v) => <DerivationHash as Custom>::fmt(&v.hash),
             Derivation::Output(v) => <DerivationHash as Custom>::fmt(&v.hash),
             Derivation::Dataframe(v) => {
+                <DerivationHash as Custom>::fmt(&v.hash)
+            },
+            Derivation::DataframeCsv(v) => {
+                <DerivationHash as Custom>::fmt(&v.hash)
+            },
+            Derivation::DataframeDB(v) => {
                 <DerivationHash as Custom>::fmt(&v.hash)
             },
             Derivation::Iterator(v) => {
@@ -130,6 +138,26 @@ pub struct Dataframe {
     pub hash: DerivationHash,
     pub derivations: Vec<DerivationHash>,
     pub frame: polars::prelude::DataFrame
+}
+
+#[derive(Debug, Clone)]
+pub struct DataframeCsv {
+    pub hash: DerivationHash,
+    pub frame: Dataframe,
+    pub delimiter: String,
+    pub ext: String
+}
+
+#[derive(Debug, Clone)]
+pub enum DataframeDBFormat{
+    Excel,
+}
+
+#[derive(Debug, Clone)]
+pub struct DataframeDB {
+    pub hash: DerivationHash,
+    pub frames: Vec<Dataframe>,
+    pub format: DataframeDBFormat
 }
 
 #[derive(Debug, Clone, Steel)]

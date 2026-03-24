@@ -153,9 +153,6 @@ impl Process {
         Derivation::Process(self.clone()) 
 
     }
-    pub fn attr(&self, key: String) -> Option<SteelVal> {
-        self.attributes.get(&key).cloned()
-    }
     pub fn script(&self) -> String {
             self.script
                 .to_string()

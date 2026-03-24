@@ -1,5 +1,4 @@
 use regex::Regex;
-use std::array::IntoIter;
 use std::collections::VecDeque;
 use std::iter::Peekable;
 use std::str::Chars;
@@ -8,7 +7,6 @@ use steel::SteelVal;
 use steel::rvals::{Custom, IntoSteelVal};
 use steel::steel_vm::builtin::BuiltInModule;
 use steel::steel_vm::register_fn::RegisterFn;
-use steel_derive::Steel;
 
 #[derive(Debug, Clone)]
 pub struct ScriptString {
@@ -91,10 +89,10 @@ struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
-    fn new(s: &'a str) -> Self{
-        Self{
-            chars: s.chars().peekable()
-       }
+    fn new(s: &'a str) -> Self {
+        Self {
+            chars: s.chars().peekable(),
+        }
     }
     fn parse(&mut self) -> Result<ScriptString, String> {
         let mut fragments = VecDeque::new();
@@ -110,15 +108,14 @@ impl<'a> Lexer<'a> {
                             current_string.push('\\')
                         }
                         current_string.push_str(&parsed)
-                    } else{
+                    } else {
                         current_string.push('\\')
                     }
-                    
                 }
                 '{' => {
                     if let Some('{') = self.chars.peek() {
                         let parsed = self.parse_double_braces(true)?;
-                        let parsed = &parsed[2..parsed.len()-2];
+                        let parsed = &parsed[2..parsed.len() - 2];
                         interpolations.push(
                             parsed
                                 .into_steelval()
@@ -130,7 +127,7 @@ impl<'a> Lexer<'a> {
                         current_string.push('{');
                     }
                 }
-                c => current_string.push(c)
+                c => current_string.push(c),
             }
         }
         fragments.push_back(current_string);
@@ -174,28 +171,68 @@ impl<'a> Lexer<'a> {
 
 impl Custom for ScriptString {
     fn fmt(&self) -> Option<std::result::Result<String, std::fmt::Error>> {
-        Some(Ok(format!(
-            "{:?}",
-            self.interpolations
-        )))
+        Some(Ok(format!("{:?}", self.interpolations)))
     }
 }
 
-
 #[cfg(test)]
-mod tests{
+mod tests {
     use super::*;
 
     #[test]
-    fn basic_interpolation(){
-        let ss = Lexer::new("a {{interp}} b").parse().expect("couldn't parse");
-        println!("{}",ss.interpolations[0]);
-        assert!(ss.interpolations.len() == 1);
+    fn basic_interpolation() {
+        let ss = Lexer::new("a {{interp}} b")
+            .parse()
+            .expect("couldn't parse");
+        assert!(
+            ss.interpolations.len() == 1,
+            "Only one interpolation should be parsed here."
+        );
+        assert!(
+            ss.interpolations[0].to_string() == "\"interp\"",
+            "Interpolation was parsed incorrectly"
+        );
     }
 
     #[test]
-    fn double_braces(){
-        let ss = Lexer::new("{interp}}").parse_double_braces(true).expect("couldn't parse");
+    fn multiple_interpolations() {
+        let ss = Lexer::new("a {{interp}} {{double interp}} b")
+            .parse()
+            .expect("couldn't parse");
+        assert!(
+            ss.interpolations.len() == 2,
+            "Two interpolations should be parsed here"
+        );
+        assert!(
+            ss.interpolations[0].to_string() == "\"interp\"",
+            "First Interpolation {} was parsed incorrectly", ss.interpolations[0]
+        );
+        assert!(
+            ss.interpolations[1].to_string() == "\"double interp\"",
+            "Second Interpolation {} was parsed incorrectly", ss.interpolations[1]);
+    }
+
+    #[test]
+    fn escaped_interpolations() {
+        let ss = Lexer::new("a {{interp}} \\{{double interp}} b")
+            .parse()
+            .expect("couldn't parse");
+        assert!(
+            ss.interpolations.len() == 1,
+            "One interpolations should be parsed here"
+        );
+        assert!(
+            ss.interpolations[0].to_string() == "\"interp\"",
+            "First Interpolation {} was parsed incorrectly", ss.interpolations[0]
+        );
+        
+    }
+
+    #[test]
+    fn double_braces() {
+        let ss = Lexer::new("{interp}}")
+            .parse_double_braces(true)
+            .expect("couldn't parse");
         assert!(ss == "{{interp}}")
     }
 }

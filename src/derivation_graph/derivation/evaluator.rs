@@ -14,7 +14,7 @@ enum CacheState {
 
 fn make_dir_check_hash(work_dir: String) -> CacheState {
     match fs::create_dir_all(work_dir.clone()) {
-        Ok(v) => CacheState::Invalid, // should check for completeness as well
+        Ok(_) => CacheState::Invalid, // should check for completeness as well
         Err(e) => match e.kind() {
             std::io::ErrorKind::PermissionDenied => {
                 panic!("Cannot create {}, permission denied", work_dir.clone())

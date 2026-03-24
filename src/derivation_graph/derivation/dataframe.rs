@@ -1,18 +1,34 @@
-use super::{Dataframe, DerivationHash, DisplayTable};
+use super::{
+    Dataframe, DataframeCsv, DataframeDB, Derivation, DerivationHash,
+    DisplayTable,
+};
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::{ContentArrangement, Table};
 use polars::prelude::*;
 use polars_utils::aliases::PlSeedableRandomStateQuality;
-use polars_utils::total_ord::TotalHash;
 use sha2::Digest;
 use steel::SteelErr;
 use steel::SteelVal;
 use steel::steel_vm::builtin::BuiltInModule;
 use steel::steel_vm::register_fn::RegisterFn;
-use steel_derive::Steel;
 
-use steel::rvals::{Custom, FromSteelVal, IntoSteelVal};
+use steel::rvals::{Custom};
+
+impl DataframeDB{
+    pub fn display(&self) -> DisplayTable {
+        let mut table = Table::new();
+        table
+            .load_preset(UTF8_FULL)
+            .apply_modifier(UTF8_ROUND_CORNERS)
+            .set_content_arrangement(ContentArrangement::Dynamic)
+            //.set_width(40)
+            .add_row(vec!["hash".to_string(), format!("{}", self.hash)]);
+
+        DisplayTable { table }
+    }
+
+}
 
 impl Dataframe {
     pub fn display(&self) -> DisplayTable {
@@ -44,8 +60,8 @@ impl Dataframe {
         .hash()
     }
 
-    pub fn into_derivation(self) -> super::Derivation {
-        super::Derivation::Dataframe(self)
+    pub fn into_derivation(self) -> Result<Derivation, String> {
+        Ok(super::Derivation::Dataframe(self.hash()?))
     }
 
     pub fn hash(mut self) -> Result<Dataframe, String> {
@@ -97,7 +113,7 @@ impl Dataframe {
         };
 
         self.frame.with_column(column).map_err(|x| x.to_string())?;
-        self.hash()
+        Ok(self)
     }
 
     pub fn select(mut self, columns: Vec<String>) -> Result<Self, String> {
@@ -105,10 +121,27 @@ impl Dataframe {
         Ok(self)
     }
 
-    pub fn subset(
-        mut self,
-        expression: String,
-    ) -> Result<Dataframe, SteelErr> {
+    pub fn as_csv(
+        self,
+        delimiter: String,
+        extension: String,
+    ) -> Result<Derivation, String> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(&extension);
+        hasher.update(&self.clone().hash()?.hash.0);
+        hasher.update(&delimiter);
+        let result = hasher.finalize();
+        let hash = DerivationHash(format!("{:x}", result));
+
+        Ok(Derivation::DataframeCsv(DataframeCsv {
+            hash,
+            frame: self,
+            delimiter,
+            ext: extension,
+        }))
+    }
+
+    pub fn subset(mut self, expression: String) -> Result<Dataframe, SteelErr> {
         let expression = format!("({})", expression);
         let lexes = subset_lexer(expression);
         let parsed = SubsetParser::new(lexes.clone()?).parse();
@@ -117,6 +150,7 @@ impl Dataframe {
         self.frame = lazy_df.filter(expr?).collect().map_err(|x| {
             SteelErr::new(steel::rerrs::ErrorKind::Generic, x.to_string())
         })?;
+        // need to add hashing here
         Ok(self)
     }
 }
@@ -129,6 +163,8 @@ pub fn register_steel_functions(module: &mut BuiltInModule) {
     module.register_fn("df::display", Dataframe::display);
     module.register_fn("df::select", Dataframe::select);
     module.register_fn("df::subset", Dataframe::subset);
+    module.register_fn("df::as-csv", Dataframe::as_csv);
+    
 }
 
 #[derive(Debug, Clone)]
@@ -206,15 +242,14 @@ fn subset_lexer(input: String) -> Result<Vec<SubsetToken>, SteelErr> {
             }
             '=' => {
                 chars.next();
-                if let Some('=') = chars.peek(){
-                        tokens.push(SubsetToken::Eq);
-                        chars.next();
+                if let Some('=') = chars.peek() {
+                    tokens.push(SubsetToken::Eq);
+                    chars.next();
                 } else {
                     return Err(SteelErr::new(
                         steel::rerrs::ErrorKind::BadSyntax,
                         "Found '=' did you mean '==' ?".to_string(),
                     ));
-
                 }
             }
             '\"' => {
@@ -419,22 +454,22 @@ fn subset_exec(df: &Dataframe, ast: SubsetExpr) -> Result<Expr, SteelErr> {
 }
 
 // looks like polars will work with custom types
-fn test_polars() {
-    let data = [
-        DerivationHash("hi".to_string()),
-        DerivationHash("there".to_string()),
-    ];
+// fn test_polars() {
+//     let data = [
+//         DerivationHash("hi".to_string()),
+//         DerivationHash("there".to_string()),
+//     ];
 
-    // undocumented bullshit
-    let s = ObjectChunked::<DerivationHash>::new_from_vec(
-        "my_col".into(),
-        data.into(),
-    );
+//     // undocumented bullshit
+//     let s = ObjectChunked::<DerivationHash>::new_from_vec(
+//         "my_col".into(),
+//         data.into(),
+//     );
 
-    let df = DataFrame::new_infer_height(vec![s.into_column()]).expect("blah");
-    let mut iter = df.columns().iter();
-    let first = iter.next().expect("a key");
-}
+//     let df = DataFrame::new_infer_height(vec![s.into_column()]).expect("blah");
+//     let mut iter = df.columns().iter();
+//     let first = iter.next().expect("a key");
+// }
 
 fn hash_frame(frame: &DataFrame) -> Result<DerivationHash, String> {
     let mut columns = frame.columns().iter();
@@ -445,7 +480,8 @@ fn hash_frame(frame: &DataFrame) -> Result<DerivationHash, String> {
     let mut hashes = Vec::<u64>::new();
 
     for col in columns {
-        col.vec_hash(hasher.clone(), &mut hashes).map_err(|x| x.to_string())?;
+        col.vec_hash(hasher.clone(), &mut hashes)
+            .map_err(|x| x.to_string())?;
     }
 
     Ok(DerivationHash(

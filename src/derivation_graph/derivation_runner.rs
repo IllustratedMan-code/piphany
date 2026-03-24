@@ -3,7 +3,6 @@ use crate::derivation_graph::{
     DerivationGraph, derivation::Derivation, derivation::DerivationHash,
     derivation::Process,
 };
-use std::collections::HashSet;
 use std::collections::VecDeque;
 
 impl DerivationGraph {
@@ -82,8 +81,8 @@ impl DerivationGraph {
     /// runs outputs derivation
     pub fn run(&self) -> Result<(), String> {
         self.run_derivation(
-            self.outputs.clone().ok_or_else(|| "No outputs node!")?.hash(),
-        );
+            self.outputs.clone().ok_or( "No outputs node!")?.hash(),
+        )?;
         // need to replace with custom error type for derivations
 
         todo!()
