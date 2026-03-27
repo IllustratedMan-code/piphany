@@ -9,17 +9,19 @@
 	 DG::graph
 	 read-csv
 	 select
-	 DG::with-column
-	 DG::Dataframe::into_derivation
+	 with-column
+	 Dataframe
 	 )
 
 
 (require-builtin DerivationGraph as DG::)
 
-(define read-csv DG::read-csv)
+(define read-csv DG::df::read-csv)
 
 (define select DG::df::select)
 (define subset DG::df::subset)
+(define with-column DG::df::with-column)
+(define Dataframe DG::df::new)
 
 (define (process hashmap #:bindings [bindings '()])
   (let* ((script (~> (hash-get hashmap 'script)

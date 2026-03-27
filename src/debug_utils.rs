@@ -48,7 +48,7 @@ impl Runner for Engine {
                 panic!("Couldn't run builtin/{:?}", path)
             }
         };
-        let _ = std::io::stdout().flush();
+        std::io::stdout().flush()?;
 
         Ok(())
     }

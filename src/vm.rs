@@ -21,10 +21,11 @@ pub fn engine(config_path: Option<std::path::PathBuf>) -> Result<Engine,  SteelE
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::debug_utils::Runner;
     macro_rules! test_scm_file {
         ($file:expr) => {{
             let mut e = engine(None).unwrap();
-            e.run(include_str!($file)).expect("Failed Test");
+            e.run_builtin_or_print_error(include_str!($file), $file).expect("Failed Test");
         }};
     }
 
@@ -42,6 +43,16 @@ mod tests {
     fn parameterized_derivation() {
         test_scm_file!("steel-modules/tests/parameterized_derivation.scm");
 
+    }
+
+    #[test]
+    fn data_frame_with_column(){
+        test_scm_file!("steel-modules/tests/data_frame_with_column.scm")
+    }
+
+    #[test]
+    fn data_frame_subset(){
+        test_scm_file!("steel-modules/tests/data_frame_subset.scm")
     }
 
 }

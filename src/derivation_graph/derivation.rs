@@ -1,22 +1,17 @@
-use comfy_table::{Table};
+use comfy_table::Table;
 use process::scriptstring::ScriptString;
 use std::path::PathBuf;
-use std::{
-    collections::HashMap, hash::Hash,
-};
+use std::{collections::HashMap, hash::Hash};
 use steel::steel_vm::builtin::BuiltInModule;
 use steel::steel_vm::register_fn::RegisterFn;
-use steel::{
-    SteelVal,
-    rvals::{Custom},
-};
+use steel::{SteelVal, rvals::Custom};
 
-pub mod evaluator;
 pub mod dataframe;
+pub mod evaluator;
 pub mod file;
+pub mod generator;
 pub mod output;
 pub mod process;
-pub mod iterator;
 pub mod test;
 use steel_derive::Steel;
 
@@ -28,14 +23,11 @@ pub enum Derivation {
     Process(Process),
     File(File),
     Output(Output),
-    Dataframe(Dataframe),
-    Iterator(Iterator),
+    Generator(Generator),
     Test(Test),
     DataframeCsv(DataframeCsv),
     DataframeDB(DataframeDB),
 }
-
-
 
 impl Derivation {
     pub fn hash(&self) -> DerivationHash {
@@ -43,49 +35,41 @@ impl Derivation {
             Derivation::Process(v) => v.hash.clone(),
             Derivation::File(v) => v.hash.clone(),
             Derivation::Output(v) => v.hash.clone(),
-            Derivation::Dataframe(v) => v.hash.clone(),
-            Derivation::Iterator(v) => v.hash.clone(),
+            Derivation::Generator(v) => v.hash.clone(),
             Derivation::Test(v) => v.hash.clone(),
             Derivation::DataframeCsv(v) => v.hash.clone(),
-            Derivation::DataframeDB(v) => v.hash.clone()
+            Derivation::DataframeDB(v) => v.hash.clone(),
         }
     }
-    pub fn inputs(&self) -> Option<Vec<DerivationHash>> {
+    pub fn inputs(self) -> Option<Vec<DerivationHash>> {
         match self {
-            Derivation::Process(v) => Some(v.inward_edges.clone()),
+            Derivation::Process(v) => Some(v.inward_edges),
             Derivation::File(_) => None,
-            Derivation::Output(v) => Some(v.inward_edges.clone()),
-            Derivation::Dataframe(v) => Some(v.derivations.clone()),
-            Derivation::DataframeCsv(v) => Some(vec![v.frame.hash.clone()]),
-            Derivation::DataframeDB(v) => Some(v.frames.iter().map(|x|x.hash.clone()).collect()),
-            Derivation::Iterator(v) => Some(v.inward_edges.clone()),
+            Derivation::Output(v) => Some(v.inward_edges),
+            Derivation::DataframeCsv(v) => Some(v.inward_edges),
+            Derivation::DataframeDB(v) => Some(v.inward_edges),
+            Derivation::Generator(v) => Some(v.inward_edges.clone()),
             Derivation::Test(v) => Some(v.inward_edges.clone()),
         }
     }
     pub fn outputs(&self) -> Vec<DerivationHash> {
         match self {
-            Derivation::Dataframe(v) => {
-                [vec![v.hash.clone()], v.derivations.clone()].concat()
-            }
             _ => vec![self.hash().clone()],
         }
     }
 
-    pub fn display(&self) -> DisplayTable {
+    pub fn display(&self) -> Result<DisplayTable, String> {
         match self {
-            Derivation::Process(v) => v.display(),
-            Derivation::File(v) => v.display(),
-            Derivation::Output(v) => v.display(),
-            Derivation::Dataframe(v) => v.display(),
+            Derivation::Process(v) => Ok(v.display()),
+            Derivation::File(v) => Ok(v.display()),
+            Derivation::Output(v) => Ok(v.display()),
             Derivation::DataframeCsv(v) => v.frame.display(),
-            Derivation::DataframeDB(v) => v.display(),
-            Derivation::Iterator(v) => v.display(),
-            Derivation::Test(v) => v.display()
+            Derivation::DataframeDB(v) => Ok(v.display()),
+            Derivation::Generator(v) => Ok(v.display()),
+            Derivation::Test(v) => Ok(v.display()),
         }
     }
 }
-
-
 
 pub fn register_steel_functions(module: &mut BuiltInModule) {
     module.register_type::<Derivation>("Derivation?");
@@ -99,27 +83,19 @@ impl steel::rvals::Custom for Derivation {
             Derivation::Process(v) => <DerivationHash as Custom>::fmt(&v.hash),
             Derivation::File(v) => <DerivationHash as Custom>::fmt(&v.hash),
             Derivation::Output(v) => <DerivationHash as Custom>::fmt(&v.hash),
-            Derivation::Dataframe(v) => {
-                <DerivationHash as Custom>::fmt(&v.hash)
-            },
             Derivation::DataframeCsv(v) => {
                 <DerivationHash as Custom>::fmt(&v.hash)
-            },
+            }
             Derivation::DataframeDB(v) => {
                 <DerivationHash as Custom>::fmt(&v.hash)
-            },
-            Derivation::Iterator(v) => {
+            }
+            Derivation::Generator(v) => {
                 <DerivationHash as Custom>::fmt(&v.hash)
             }
-            Derivation::Test(v) => {
-                <DerivationHash as Custom>::fmt(&v.hash)
-            }
+            Derivation::Test(v) => <DerivationHash as Custom>::fmt(&v.hash),
         }
     }
 }
-
-
-
 
 #[derive(Debug, Clone, Steel)]
 pub struct File {
@@ -135,35 +111,51 @@ pub struct Output {
 
 #[derive(Debug, Clone)]
 pub struct Dataframe {
-    pub hash: DerivationHash,
-    pub derivations: Vec<DerivationHash>,
-    pub frame: polars::prelude::DataFrame
+    // we might not need this to be a derivationtype, just need to pass the derivations to the format
+    pub frame: polars::prelude::DataFrame,
 }
 
 #[derive(Debug, Clone)]
 pub struct DataframeCsv {
     pub hash: DerivationHash,
     pub frame: Dataframe,
+    pub inward_edges: Vec<DerivationHash>,
     pub delimiter: String,
-    pub ext: String
+    pub ext: String,
 }
 
 #[derive(Debug, Clone)]
-pub enum DataframeDBFormat{
+pub enum DataframeDBFormat {
     Excel,
+    Sql,
 }
 
 #[derive(Debug, Clone)]
 pub struct DataframeDB {
     pub hash: DerivationHash,
     pub frames: Vec<Dataframe>,
-    pub format: DataframeDBFormat
+    pub format: DataframeDBFormat,
+    pub inward_edges: Vec<DerivationHash>,
 }
 
 #[derive(Debug, Clone, Steel)]
-pub struct Iterator {
+pub struct Generator {
+    pub association: Option<DerivationHash>, // Only one Generator association can exist in a process, two Nones count as different
     pub hash: DerivationHash,
     pub inward_edges: Vec<DerivationHash>,
+}
+
+#[derive(Debug, Clone)]
+pub enum GeneratorAssociationOperation {
+    Cross,
+    Zip,
+}
+
+#[derive(Debug, Clone, Steel)]
+pub struct GeneratorAssociation {
+    pub hash: DerivationHash,
+    pub generators: Vec<DerivationHash>,
+    pub operation: GeneratorAssociationOperation,
 }
 
 #[derive(Debug, Clone, Steel)]
@@ -218,5 +210,3 @@ impl std::fmt::Display for DisplayTable {
         write!(f, "\n{}", self.table)
     }
 }
-
-

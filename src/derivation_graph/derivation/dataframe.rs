@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::{
     Dataframe, DataframeCsv, DataframeDB, Derivation, DerivationHash,
     DisplayTable,
@@ -10,12 +12,13 @@ use polars_utils::aliases::PlSeedableRandomStateQuality;
 use sha2::Digest;
 use steel::SteelErr;
 use steel::SteelVal;
+use steel::rvals::FromSteelVal;
 use steel::steel_vm::builtin::BuiltInModule;
 use steel::steel_vm::register_fn::RegisterFn;
 
-use steel::rvals::{Custom};
+use steel::rvals::Custom;
 
-impl DataframeDB{
+impl DataframeDB {
     pub fn display(&self) -> DisplayTable {
         let mut table = Table::new();
         table
@@ -27,20 +30,30 @@ impl DataframeDB{
 
         DisplayTable { table }
     }
-
 }
 
 impl Dataframe {
-    pub fn display(&self) -> DisplayTable {
+    pub fn display(&self) -> Result<DisplayTable, String> {
         let mut table = Table::new();
         table
             .load_preset(UTF8_FULL)
             .apply_modifier(UTF8_ROUND_CORNERS)
             .set_content_arrangement(ContentArrangement::Dynamic)
             //.set_width(40)
-            .add_row(vec!["hash".to_string(), format!("{}", self.hash)]);
+            .add_row(vec!["hash".to_string(), format!("{}", self.hash()?)]);
 
-        DisplayTable { table }
+        Ok(DisplayTable { table })
+    }
+
+    pub fn new(map: HashMap<String, Vec<SteelVal>>) -> Result<Self, SteelErr> {
+        let mut columns = vec![];
+        for (key, val) in map.into_iter() {
+            columns.push(coerce_steel_vec_to_polars_column(key, val)?)
+        }
+        let frame = DataFrame::new_infer_height(columns).map_err(|x| {
+            SteelErr::new(steel::rerrs::ErrorKind::Generic, x.to_string())
+        })?;
+        Ok(Self { frame })
     }
 
     pub fn read_csv(path: String) -> Result<Self, String> {
@@ -52,67 +65,39 @@ impl Dataframe {
             .map_err(|x| x.to_string())?
             .finish()
             .map_err(|x| x.to_string())?;
-        Self {
-            frame,
-            hash: DerivationHash::default(),
-            derivations: vec![],
-        }
-        .hash()
+        Ok(Self { frame })
     }
 
-    pub fn into_derivation(self) -> Result<Derivation, String> {
-        Ok(super::Derivation::Dataframe(self.hash()?))
-    }
-
-    pub fn hash(mut self) -> Result<Dataframe, String> {
+    pub fn hash(&self) -> Result<DerivationHash, String> {
         let mut hasher = sha2::Sha256::new();
         let frame_hash = hash_frame(&self.frame)?.0;
         hasher.update(frame_hash);
-        hasher.update(
-            self.derivations
-                .iter()
-                .map(|x| x.to_string())
-                .collect::<Vec<String>>()
-                .join(""),
-        );
+        // TODO
+        // need to search for derivations in columns and hash those into it.
+        // need to scan for custom type columns that have derivations
         let result = hasher.finalize();
-        self.hash = DerivationHash(format!("{:x}", result));
-        Ok(self)
+        let hash = DerivationHash(format!("{:x}", result));
+        Ok(hash)
+    }
+
+    pub fn derivations(&self) -> Vec<DerivationHash>{
+        todo!()
     }
 
     pub fn with_column(
         mut self,
         name: String,
-        values: Vec<SteelVal>,
-    ) -> Result<Dataframe, String> {
-        let first = std::mem::discriminant(&values[0]);
-        let all_same_type =
-            values.iter().all(|x| first == std::mem::discriminant(x));
-
-        if !all_same_type {
-            return Err(
-                "All elements in column must be the same type!".to_string()
-            );
+        mut values: Vec<SteelVal>,
+    ) -> Result<Dataframe, SteelErr> {
+        if values.len() == 1 {
+            let length = self.frame.shape().0;
+            values.resize(length, values[0].clone()) // this prevents panic
         }
+        let column = coerce_steel_vec_to_polars_column(name, values)?;
+        self.frame.with_column(column).map_err(|x| {
+            SteelErr::new(steel::rerrs::ErrorKind::TypeMismatch, x.to_string())
+        })?;
 
-        let column = match values[0] {
-            SteelVal::BoolV(_) => {
-                let vals: Vec<bool> = values
-                    .into_iter()
-                    .map(|v| {
-                        if let SteelVal::BoolV(b) = v {
-                            b
-                        } else {
-                            unreachable!("Already checked all same type")
-                        }
-                    })
-                    .collect();
-                Column::from(Series::new(name.into(), vals))
-            }
-            _ => return Err("Unsupported data type for Dataframe".to_string()),
-        };
-
-        self.frame.with_column(column).map_err(|x| x.to_string())?;
         Ok(self)
     }
 
@@ -128,16 +113,18 @@ impl Dataframe {
     ) -> Result<Derivation, String> {
         let mut hasher = sha2::Sha256::new();
         hasher.update(&extension);
-        hasher.update(&self.clone().hash()?.hash.0);
+        hasher.update(&self.clone().hash()?.0);
         hasher.update(&delimiter);
         let result = hasher.finalize();
         let hash = DerivationHash(format!("{:x}", result));
+        let derivations = self.derivations();
 
         Ok(Derivation::DataframeCsv(DataframeCsv {
             hash,
             frame: self,
             delimiter,
             ext: extension,
+            inward_edges: derivations
         }))
     }
 
@@ -155,16 +142,96 @@ impl Dataframe {
     }
 }
 
+pub fn coerce_steel_vec_to_polars_column(
+    name: String,
+    values: Vec<SteelVal>,
+) -> Result<Column, SteelErr> {
+    let first = std::mem::discriminant(values.first().ok_or_else(|| {
+        SteelErr::new(
+            steel::rerrs::ErrorKind::TypeMismatch,
+            "Column must be at least length 1!".into(),
+        )
+    })?);
+
+    let all_same_type =
+        values.iter().all(|x| first == std::mem::discriminant(x));
+
+    if !all_same_type {
+        return Err(SteelErr::new(
+            steel::rerrs::ErrorKind::TypeMismatch,
+            "All elements in column must be the same type!".to_string(),
+        ));
+    }
+
+    let column = match values[0] {
+        SteelVal::BoolV(_) => {
+            let vals: Vec<bool> = values
+                .into_iter()
+                .map(|v| {
+                    if let SteelVal::BoolV(b) = v {
+                        b
+                    } else {
+                        unreachable!("Already checked all same type")
+                    }
+                })
+                .collect();
+            Column::from(Series::new(name.into(), vals))
+        }
+
+        SteelVal::IntV(_) => {
+            let vals: Vec<i64> = values
+                .into_iter()
+                .map(|v| {
+                    if let SteelVal::IntV(b) = v {
+                        b as i64
+                    } else {
+                        unreachable!("Already checked all same type")
+                    }
+                })
+                .collect();
+
+            Column::from(Series::new(name.into(), vals))
+        }
+
+        SteelVal::Custom(_) => {
+            let v: Result<Vec<DerivationHash>, SteelErr> = values
+                .into_iter()
+                .map(|x| -> Result<DerivationHash, SteelErr> {
+                    Ok(Derivation::from_steelval(&x)?.hash())
+                })
+                .collect();
+            let v = v?;
+
+            // This creates a panic if the vector is a single element,
+            // due to some broadcasting behavior
+            // The panic only occurs within a format! call for some reason (including println!)
+            // See https://github.com/pola-rs/polars/issues/27078
+            // for now, need to just do the same broadcasting behavior
+            // that the Column::from(Series) does
+            // to prevent the panic (This is checked for in the with-column function)
+
+            let data =
+                ObjectChunked::<DerivationHash>::new_from_vec(name.into(), v);
+            data.into_column()
+        }
+        _ => {
+            return Err(SteelErr::new(
+                steel::rerrs::ErrorKind::TypeMismatch,
+                "Unsupported data type for Dataframe".to_string(),
+            ));
+        }
+    };
+    Ok(column)
+}
+
 pub fn register_steel_functions(module: &mut BuiltInModule) {
-    module.register_fn("read-csv", Dataframe::read_csv);
-    module.register_fn("with-column", Dataframe::with_column);
-    module
-        .register_fn("Dataframe::into_derivation", Dataframe::into_derivation);
+    module.register_fn("df::read-csv", Dataframe::read_csv);
+    module.register_fn("df::with-column", Dataframe::with_column);
     module.register_fn("df::display", Dataframe::display);
     module.register_fn("df::select", Dataframe::select);
     module.register_fn("df::subset", Dataframe::subset);
     module.register_fn("df::as-csv", Dataframe::as_csv);
-    
+    module.register_fn("df::new", Dataframe::new);
 }
 
 #[derive(Debug, Clone)]

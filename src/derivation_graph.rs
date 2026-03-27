@@ -53,6 +53,7 @@ impl DerivationGraph {
         derivation::file::register_steel_functions(&mut module)?;
         derivation::output::register_steel_functions(&mut module);
         derivation::dataframe::register_steel_functions(&mut module);
+        derivation::generator::register_steel_functions(&mut module);
         module.register_fn("node_count", DerivationGraph::node_count);
         module.register_fn("display_nodes", DerivationGraph::display_nodes);
         module.register_fn("add_output", DerivationGraph::add_outputs);
