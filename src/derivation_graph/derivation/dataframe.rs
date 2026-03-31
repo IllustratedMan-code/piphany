@@ -81,7 +81,7 @@ impl Dataframe {
     }
 
     pub fn derivations(&self) -> Vec<DerivationHash>{
-        todo!()
+        todo!
     }
 
     pub fn with_column(
@@ -94,7 +94,7 @@ impl Dataframe {
             values.resize(length, values[0].clone()) // this prevents panic
         }
         let column = coerce_steel_vec_to_polars_column(name, values)?;
-        self.frame.with_column(column).map_err(|x| {
+        self.frame.with_column(column).map_err(|x| { // with column broadcasts unit length columns
             SteelErr::new(steel::rerrs::ErrorKind::TypeMismatch, x.to_string())
         })?;
 
@@ -193,6 +193,54 @@ pub fn coerce_steel_vec_to_polars_column(
             Column::from(Series::new(name.into(), vals))
         }
 
+        SteelVal::StringV(_) => {
+            let vals: Vec<String> = values
+                .into_iter()
+                .map(|v| {
+                    if let SteelVal::StringV(b) = v {
+                        b.as_str().into()
+                    } else {
+                        unreachable!("Already checked all same type")
+                    }
+                })
+                .collect();
+
+            Column::from(Series::new(name.into(), vals))
+        }
+
+        SteelVal::CharV(_) => {
+            let vals: Vec<String> = values
+                .into_iter()
+                .map(|v| {
+                    if let SteelVal::CharV(c) = v {
+                        c.into()
+                    } else {
+                        unreachable!("Already checked all same type")
+                    }
+                })
+                .collect();
+
+            Column::from(Series::new(name.into(), vals))
+        }
+
+        SteelVal::NumV(_) => {
+            let vals: Vec<f64> = values
+                .into_iter()
+                .map(|v| {
+                    if let SteelVal::NumV(c) = v {
+                        c
+                    } else {
+                        unreachable!("Already checked all same type")
+                    }
+                })
+                .collect();
+
+            Column::from(Series::new(name.into(), vals))
+        }
+        // probably need to handle this element by element instead,
+        // could probably wrap it with a template that allows void
+        // can use option here?
+
         SteelVal::Custom(_) => {
             let v: Result<Vec<DerivationHash>, SteelErr> = values
                 .into_iter()
@@ -209,6 +257,7 @@ pub fn coerce_steel_vec_to_polars_column(
             // for now, need to just do the same broadcasting behavior
             // that the Column::from(Series) does
             // to prevent the panic (This is checked for in the with-column function)
+            // might want to instead do something expected when passing one element
 
             let data =
                 ObjectChunked::<DerivationHash>::new_from_vec(name.into(), v);

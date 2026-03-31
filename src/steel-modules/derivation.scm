@@ -11,13 +11,14 @@
 	 select
 	 with-column
 	 Dataframe
+	 as-csv
 	 )
 
 
 (require-builtin DerivationGraph as DG::)
 
 (define read-csv DG::df::read-csv)
-
+(define as-csv DG::df::as-csv)
 (define select DG::df::select)
 (define subset DG::df::subset)
 (define with-column DG::df::with-column)
