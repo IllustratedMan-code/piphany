@@ -81,7 +81,7 @@ impl Dataframe {
     }
 
     pub fn derivations(&self) -> Vec<DerivationHash>{
-        vec![DerivationHash("Uninplemented")]
+        vec![DerivationHash("Uninplemented".to_string())]
         //TODO
     }
 
