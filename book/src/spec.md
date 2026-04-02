@@ -24,6 +24,10 @@ Dataframe operations
 
 works like R's subset
 
+## df::with-column
+
+set column to list of values
+
 ## df::read-csv
 
 read a csv into a df
@@ -40,13 +44,13 @@ Create a df
 
 returns a derivation pointing to a csv file.
 
-## df::as-excel
+## df::as-database
 
-takes either a dataframe or a hashmap of dataframes, returns a derivation pointing to an excel file.
+takes either a dataframe or a hashmap of dataframes, returns a derivation pointing to a database file, including excel/sql as a format
 
 # expand!
 
-returns a lazy iterator of derivations (not known at compile time) which takes a glob path as input and returns an iterator object. A process can only take one expand! object or family of expand! objects returned by cross! or zip!.
+returns a lazy generator of derivations (not known at compile time) which takes a glob path as input and returns an iterator object. A process can only take one expand! object or family of expand! objects returned by cross! or zip!.
 
 ## cross!
 
