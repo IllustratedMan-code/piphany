@@ -7,7 +7,7 @@ use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::{ContentArrangement, Table};
 use sha2::Digest;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use steel::SteelErr;
 use steel::{
     SteelVal,
@@ -217,17 +217,17 @@ impl std::fmt::Debug for Process {
 }
 
 fn extract_derivation_hashes(val: SteelVal) -> Vec<DerivationHash> {
-    let mut vec = Vec::<DerivationHash>::new();
+    let mut vec = HashSet::<DerivationHash>::new();
     extract_derivation_hashes_recursive(val, &mut vec);
-    vec
+    vec.into_iter().collect()
 }
 
 fn extract_derivation_hashes_recursive(
     val: SteelVal,
-    vec: &mut Vec<DerivationHash>,
+    vec: &mut HashSet<DerivationHash>,
 ) {
     if let Ok(derivation) = Derivation::from_steelval(&val) {
-        vec.push(derivation.hash());
+        vec.extend(derivation.outputs());
         return;
     }
 
@@ -250,5 +250,5 @@ fn get_inward_edges(script: ScriptString) -> Vec<DerivationHash> {
         .interpolations
         .iter()
         .flat_map(|i| extract_derivation_hashes(i.clone()))
-        .collect()
+        .collect::<HashSet<DerivationHash>>().into_iter().collect()
 }

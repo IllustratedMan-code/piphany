@@ -16,6 +16,7 @@ use steel::rvals::FromSteelVal;
 use steel::steel_vm::builtin::BuiltInModule;
 use steel::steel_vm::register_fn::RegisterFn;
 
+use std::iter::Iterator;
 use steel::rvals::Custom;
 
 impl DataframeDB {
@@ -80,8 +81,37 @@ impl Dataframe {
         Ok(hash)
     }
 
-    pub fn derivations(&self) -> Vec<DerivationHash>{
-        vec![DerivationHash("Uninplemented".to_string())]
+    pub fn derivations(&self) -> Vec<DerivationHash> {
+        let columns_with_derivations: Vec<String> = self
+            .frame
+            .schema()
+            .iter_fields()
+            .filter(|field| {
+                if let DataType::Object(name) = field.dtype() {
+                    name == &"DerivationHash"
+                } else {
+                    false
+                }
+            })
+            .map(|field| field.name.as_str().to_string())
+            .collect();
+
+        let mut vec: Vec<DerivationHash> = vec![];
+        for i in columns_with_derivations {
+            vec.extend(
+                self.frame
+                    .column(&i)
+                    .expect("couldn't convert column")
+                    .as_series()
+                    .expect("blah")
+                    .as_any()
+                    .downcast_ref::<ObjectChunked<DerivationHash>>()
+                    .expect("blah")
+                    .into_iter().map(|x| x.expect("blah").clone()),
+            )
+        }
+
+        vec
         //TODO
     }
 
@@ -95,7 +125,8 @@ impl Dataframe {
             values.resize(length, values[0].clone()) // this prevents panic
         }
         let column = coerce_steel_vec_to_polars_column(name, values)?;
-        self.frame.with_column(column).map_err(|x| { // with column broadcasts unit length columns
+        self.frame.with_column(column).map_err(|x| {
+            // with column broadcasts unit length columns
             SteelErr::new(steel::rerrs::ErrorKind::TypeMismatch, x.to_string())
         })?;
 
@@ -125,7 +156,7 @@ impl Dataframe {
             frame: self,
             delimiter,
             ext: extension,
-            inward_edges: derivations
+            inward_edges: derivations,
         }))
     }
 
@@ -241,7 +272,6 @@ pub fn coerce_steel_vec_to_polars_column(
         // probably need to handle this element by element instead,
         // could probably wrap it with a template that allows void
         // can use option here?
-
         SteelVal::Custom(_) => {
             let v: Result<Vec<DerivationHash>, SteelErr> = values
                 .into_iter()

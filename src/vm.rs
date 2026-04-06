@@ -1,13 +1,11 @@
 use super::derivation_graph::DerivationGraph;
 use steel::{steel_vm::engine::Engine, SteelErr};
 use super::config::Config;
-use crate::bindings;
 mod tester_functions;
 mod convenience_functions;
 
 pub fn engine(config_path: Option<std::path::PathBuf>) -> Result<Engine,  SteelErr> {
     let mut vm = Engine::new();
-    bindings::register_bindings(&mut vm);
     let  c = Config::new(config_path);
     c.register_params(&mut vm);
     DerivationGraph::init(&mut vm, c)?;

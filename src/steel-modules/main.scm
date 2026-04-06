@@ -2,8 +2,15 @@
 
 (define myscript
   (file! "src/main.rs"))
+(define myscript2
+  (file! "src/vm.rs"))
+
 
 (define metadata (read-csv "examples/test.csv"))
+
+(set! metadata
+  (~> metadata 
+      (with-column "derivations" (list myscript myscript2))))
 ;; (define metadata (df::read-csv "examples/test.csv"))
 ;; (define metadata
 ;;   (~> metadata
@@ -23,6 +30,7 @@
    container : "ubuntu:latest"
    script : #<<''
         mkdir -p {{out}}
+	cat {{(as-csv metadata "," ".csv")}} > {{out}}/csv.txt
         echo {{(+ 5 6 2 x)}} > {{out}}/result.txt
         {{myscript}} {{out}}/script-out.txt
 	''

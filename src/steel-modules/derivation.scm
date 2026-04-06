@@ -7,6 +7,7 @@
 	 DG::config
 	 drv::display
 	 DG::graph
+	 drv::inputs
 	 read-csv
 	 select
 	 with-column
@@ -116,6 +117,7 @@
   (DG::node_count DG::graph))
 
 (define drv::display DG::Derivation::display)
+(define drv::inputs DG::Derivation::inputs)
 
 (define (display-nodes)
   (DG::display_nodes DG::graph))

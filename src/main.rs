@@ -1,6 +1,5 @@
 #![warn(clippy::unwrap_used)]
 
-mod bindings;
 mod config;
 mod debug_utils;
 mod derivation_graph;

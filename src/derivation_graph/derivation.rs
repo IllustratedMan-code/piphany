@@ -52,9 +52,20 @@ impl Derivation {
             Derivation::Test(v) => Some(v.inward_edges.clone()),
         }
     }
-    pub fn outputs(&self) -> Vec<DerivationHash> {
+    pub fn outputs(self) -> Vec<DerivationHash> {
+        let hash = self.hash().clone();
         match self {
-            _ => vec![self.hash().clone()],
+            Derivation::DataframeCsv(csv) => {
+                let mut v = csv.inward_edges;
+                v.push(hash);
+                v
+            },
+            Derivation::DataframeDB(db) => {
+                let mut v = db.inward_edges;
+                v.push(hash);
+                v
+            }
+            _ => vec![self.hash()],
         }
     }
 
@@ -75,6 +86,7 @@ pub fn register_steel_functions(module: &mut BuiltInModule) {
     module.register_type::<Derivation>("Derivation?");
     module.register_fn("Derivation::hash", Derivation::hash);
     module.register_fn("Derivation::display", Derivation::display);
+    module.register_fn("Derivation::inputs", Derivation::inputs);
 }
 
 impl steel::rvals::Custom for Derivation {
