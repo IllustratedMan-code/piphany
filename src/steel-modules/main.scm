@@ -1,28 +1,16 @@
 (define x 5)
 
-(define myscript
+(define script
   (file! "src/main.rs"))
-(define myscript2
-  (file! "src/vm.rs"))
 
+(define script2
+  (file! "src/vm.rs"))
 
 (define metadata (read-csv "examples/test.csv"))
 
 (set! metadata
   (~> metadata 
-      (with-column "derivations" (list myscript myscript2))))
-;; (define metadata (df::read-csv "examples/test.csv"))
-;; (define metadata
-;;   (~> metadata
-;;       (df::with-column
-;;        (~> (df::select-column metadata 'price)
-;; 	   (column::map file!)
-;; 	   )
-;;        )
-;;   )
-;; )
-
-
+      (with-column "derivations" (list script script2))))
 
 (define proc1
   (process!
@@ -32,7 +20,7 @@
         mkdir -p {{out}}
 	cat {{(as-csv metadata "," ".csv")}} > {{out}}/csv.txt
         echo {{(+ 5 6 2 x)}} > {{out}}/result.txt
-        {{myscript}} {{out}}/script-out.txt
+        {{script}} {{out}}/script-out.txt
 	''
    )
   )

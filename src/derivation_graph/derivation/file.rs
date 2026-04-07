@@ -3,11 +3,11 @@ use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::{ContentArrangement, Table};
 use sha2::Digest;
-use std::io::{BufRead};
+use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 use steel::SteelErr;
-use steel::rvals::{ IntoSteelVal};
+use steel::rvals::IntoSteelVal;
 use steel::steel_vm::builtin::BuiltInModule;
 use steel::steel_vm::register_fn::RegisterFn;
 use steel_derive::Steel;
@@ -72,7 +72,7 @@ fn calculate_hash(
     hasher.update(format!("{:?}", path));
 
     let result = hasher.finalize();
-    let hash = format!("{:x}-{}", result, path_name);
+    let hash = format!("{}-{:x}", path_name, result);
     Ok(DerivationHash(hash))
 }
 

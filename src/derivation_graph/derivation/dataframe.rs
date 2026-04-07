@@ -81,14 +81,14 @@ impl Dataframe {
         Ok(hash)
     }
 
-    pub fn derivations(&self) -> Vec<DerivationHash> {
+    pub fn derivations(&self) -> Result<Vec<DerivationHash>,String> {
         let columns_with_derivations: Vec<String> = self
             .frame
             .schema()
             .iter_fields()
             .filter(|field| {
                 if let DataType::Object(name) = field.dtype() {
-                    name == &"DerivationHash"
+                    name == &"Derivation"
                 } else {
                     false
                 }
@@ -101,17 +101,17 @@ impl Dataframe {
             vec.extend(
                 self.frame
                     .column(&i)
-                    .expect("couldn't convert column")
-                    .as_series()
-                    .expect("blah")
+                    .map_err(|x| x.to_string())?
+                    .as_materialized_series()
                     .as_any()
-                    .downcast_ref::<ObjectChunked<DerivationHash>>()
-                    .expect("blah")
-                    .into_iter().map(|x| x.expect("blah").clone()),
+                    .downcast_ref::<ObjectChunked<Derivation>>()
+                    .ok_or_else(|| "Couldn't downcast to derivation")?
+                    .into_iter()
+                    .map(|x| x.expect("blah").clone().hash()),
             )
         }
 
-        vec
+        Ok(vec)
         //TODO
     }
 
@@ -149,7 +149,7 @@ impl Dataframe {
         hasher.update(&delimiter);
         let result = hasher.finalize();
         let hash = DerivationHash(format!("{:x}", result));
-        let derivations = self.derivations();
+        let derivations = self.derivations()?;
 
         Ok(Derivation::DataframeCsv(DataframeCsv {
             hash,
@@ -273,10 +273,10 @@ pub fn coerce_steel_vec_to_polars_column(
         // could probably wrap it with a template that allows void
         // can use option here?
         SteelVal::Custom(_) => {
-            let v: Result<Vec<DerivationHash>, SteelErr> = values
+            let v: Result<Vec<Derivation>, SteelErr> = values
                 .into_iter()
-                .map(|x| -> Result<DerivationHash, SteelErr> {
-                    Ok(Derivation::from_steelval(&x)?.hash())
+                .map(|x| -> Result<Derivation, SteelErr> {
+                    Ok(Derivation::from_steelval(&x)?)
                 })
                 .collect();
             let v = v?;
@@ -291,7 +291,7 @@ pub fn coerce_steel_vec_to_polars_column(
             // might want to instead do something expected when passing one element
 
             let data =
-                ObjectChunked::<DerivationHash>::new_from_vec(name.into(), v);
+                ObjectChunked::<Derivation>::new_from_vec(name.into(), v);
             data.into_column()
         }
         _ => {
@@ -620,24 +620,43 @@ fn subset_exec(df: &Dataframe, ast: SubsetExpr) -> Result<Expr, SteelErr> {
 
 fn hash_frame(frame: &DataFrame) -> Result<DerivationHash, String> {
     let mut columns = frame.columns().iter();
-    let first = columns.next().ok_or_else(|| {
+    columns.next().ok_or_else(|| {
         "At least one column must exist for hashing".to_string()
     })?;
-    let hasher = PlSeedableRandomStateQuality::default();
-    let mut hashes = Vec::<u64>::new();
+    let mut shahasher = sha2::Sha256::new();
 
     for col in columns {
-        col.vec_hash(hasher.clone(), &mut hashes)
-            .map_err(|x| x.to_string())?;
+        if col.dtype() == &DataType::Object("Derivation") {
+            let vals = col
+                .as_materialized_series()
+                .as_any()
+                .downcast_ref::<ObjectChunked<Derivation>>()
+                .ok_or_else(|| {
+                    "Couldn't convert internal polars type to Derivations"
+                        .to_string()
+                })?
+                .into_iter();
+            for v in vals {
+                shahasher.update(
+                    v.ok_or_else(|| {
+                        "Couldn't unwrap derivation for hashing".to_string()
+                    })?
+                    .hash()
+                    .0
+                    .as_bytes(),
+                );
+            }
+        } else {
+            let values = col
+                .as_materialized_series()
+                .serialize_to_bytes()
+                .map_err(|x| x.to_string())?;
+            shahasher.update(values);
+        }
     }
-
-    Ok(DerivationHash(
-        hashes
-            .iter()
-            .map(|x| x.to_string())
-            .collect::<Vec<String>>()
-            .join(""),
-    ))
+    let result = shahasher.finalize();
+    let hash = format!("{:x}", result);
+    Ok(DerivationHash(hash))
 }
 
 // Stuff needed for custom types in polars
@@ -667,6 +686,13 @@ impl PolarsObject for DerivationHash {
     }
 }
 
+impl PolarsObject for Derivation {
+    fn type_name() -> &'static str {
+        "Derivation"
+    }
+}
+
+// Display for Steel
 impl Custom for Dataframe {
     fn fmt(&self) -> Option<std::result::Result<String, std::fmt::Error>> {
         Some(Ok(format!("{}", self.frame)))
