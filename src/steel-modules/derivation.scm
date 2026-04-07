@@ -13,6 +13,7 @@
 	 with-column
 	 Dataframe
 	 as-csv
+	 subset
 	 ) ;; also subset!, there is a weird problem with leaky namespaces
 
 

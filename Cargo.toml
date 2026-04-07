@@ -19,5 +19,5 @@ comfy-table = "7.2.1"
 clap = { version = "4.5.49", features = ["derive"] }
 enum_dispatch = "0.3.13"
 sha2 = "0.10.9"
-polars = { version = "0.53.0", features = ["lazy", "object", "fmt", "row_hash"] }
+polars = { version="0.53.0", features = ["lazy", "object", "fmt", "row_hash"] }
 polars-utils = "0.53.0"

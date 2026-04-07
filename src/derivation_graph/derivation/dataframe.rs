@@ -81,7 +81,7 @@ impl Dataframe {
         Ok(hash)
     }
 
-    pub fn derivations(&self) -> Result<Vec<DerivationHash>,String> {
+    pub fn derivations(&self) -> Result<Vec<DerivationHash>, String> {
         let columns_with_derivations: Vec<String> = self
             .frame
             .schema()
@@ -165,12 +165,62 @@ impl Dataframe {
         let lexes = subset_lexer(expression);
         let parsed = SubsetParser::new(lexes.clone()?).parse();
         let expr = subset_exec(&self, parsed?);
+        // The following line prevents a very strange panic that is hard to reproduce
+        // don't really know what it does, but it might have something to do with the tgype registry
+        // add this line before doing any lazy operations, just to be safe
+        self.frame.align_chunks(); // polars insanity, don't remove this, or you're in for some terrible hell
         let lazy_df = self.frame.lazy();
+
         self.frame = lazy_df.filter(expr?).collect().map_err(|x| {
             SteelErr::new(steel::rerrs::ErrorKind::Generic, x.to_string())
         })?;
         // need to add hashing here
         Ok(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use steel::rvals::IntoSteelVal;
+
+    use super::super::File;
+    use super::super::file::HashMethod;
+    use super::*;
+
+    #[test]
+    fn test_subset_panic() {
+        let f1 = File::new("src/main.rs".into(), HashMethod::Contents)
+            .expect("no file");
+        let f2 = File::new("src/vm.rs".into(), HashMethod::Contents)
+            .expect("no file");
+        let hashmap: HashMap<String, Vec<SteelVal>> = HashMap::from([
+            (
+                "a".to_string(),
+                vec![SteelVal::IntV(1), SteelVal::IntV(2), SteelVal::IntV(3)],
+            ),
+            (
+                "b".to_string(),
+                vec![SteelVal::IntV(1), SteelVal::IntV(2), SteelVal::IntV(3)],
+            ),
+            (
+                "c".to_string(),
+                vec![
+                    f1.clone().as_derivation().into_steelval().expect("blah"),
+                    f2.as_derivation().into_steelval().expect("blah"),
+                    f1.as_derivation().into_steelval().expect("blah"),
+                ],
+            ),
+        ]);
+        let df = Dataframe::new(hashmap).expect("couldn't make it");
+        let mut vm = steel::steel_vm::engine::Engine::new();
+        vm.register_fn("subset!", Dataframe::subset);
+        vm.register_external_value("df", df)
+            .expect("couldn't register val");
+        let res = vm.run("(subset! df \"a<5\")").expect("subset failed");
+        println!("{:?}", res);
+        assert!(1 == 0);
+        //let df  = df.subset("a<5".into()).expect("couldn't subset it");
+        //println!("{:?}", df)
     }
 }
 
@@ -628,7 +678,8 @@ fn hash_frame(frame: &DataFrame) -> Result<DerivationHash, String> {
     for col in columns {
         if col.dtype() == &DataType::Object("Derivation") {
             let vals = col
-                .as_materialized_series()
+                .as_series()
+                .expect("blah")
                 .as_any()
                 .downcast_ref::<ObjectChunked<Derivation>>()
                 .ok_or_else(|| {
@@ -648,7 +699,8 @@ fn hash_frame(frame: &DataFrame) -> Result<DerivationHash, String> {
             }
         } else {
             let values = col
-                .as_materialized_series()
+                .as_series()
+                .expect("blah2")
                 .serialize_to_bytes()
                 .map_err(|x| x.to_string())?;
             shahasher.update(values);
@@ -666,7 +718,7 @@ impl Default for DerivationHash {
     }
 }
 
-impl polars_utils::total_ord::TotalHash for DerivationHash {
+impl polars::polars_utils::total_ord::TotalHash for DerivationHash {
     fn tot_hash<H>(&self, state: &mut H)
     where
         H: std::hash::Hasher,
@@ -674,7 +726,7 @@ impl polars_utils::total_ord::TotalHash for DerivationHash {
         state.write(self.0.as_bytes())
     }
 }
-impl polars_utils::total_ord::TotalEq for DerivationHash {
+impl polars::polars_utils::total_ord::TotalEq for DerivationHash {
     fn tot_eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }

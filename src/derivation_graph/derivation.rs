@@ -247,7 +247,7 @@ impl Default for Derivation {
     }
 }
 
-impl polars_utils::total_ord::TotalHash for Derivation {
+impl polars::polars_utils::total_ord::TotalHash for Derivation {
     fn tot_hash<H>(&self, state: &mut H)
     where
         H: std::hash::Hasher,
@@ -255,7 +255,7 @@ impl polars_utils::total_ord::TotalHash for Derivation {
         state.write(self.hash().0.as_bytes())
     }
 }
-impl polars_utils::total_ord::TotalEq for Derivation {
+impl polars::polars_utils::total_ord::TotalEq for Derivation {
     fn tot_eq(&self, other: &Self) -> bool {
         self.hash().0 == other.hash().0
     }
