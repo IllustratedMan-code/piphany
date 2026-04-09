@@ -153,14 +153,15 @@ pub struct Generator {
     pub association: Option<DerivationHash>, // Only one Generator association can exist in a process, two Nones count as different
     pub hash: DerivationHash,
     pub generator_kind: GeneratorKind, // glob or process
-    pub process: Process // steal input edges from here
-    // freeze generator interpolations in process, add method to resolve the script with
-    // generator values (i.e. *.txt)
+    pub process: Process,              // steal input edges from here
+                                       // freeze generator interpolations in process, add method to resolve the script with
+                                       // generator values (i.e. *.txt)
 }
 
 #[derive(Debug, Clone, Steel)]
-pub enum GeneratorKind{
-
+pub enum GeneratorKind {
+    Glob { glob: String, regex: bool },
+    Process,
 }
 
 #[derive(Debug, Clone)]
@@ -197,6 +198,7 @@ pub struct Process {
     pub hpc_runtime: Option<String>,
     pub container_runtime: Option<String>,
     pub work_dir: String,
+    pub generators: Option<Vec<Generator>>,
 }
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]

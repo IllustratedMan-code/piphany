@@ -1,11 +1,12 @@
+use super::DisplayTable;
 use super::evaluator;
-use scriptstring::ScriptString;
 /// implementation for Process derivation
-use super::{Derivation, DerivationHash, Process};
+use super::{Derivation, DerivationHash, Generator, Process};
 use crate::config::{Config, ParamValue};
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::{ContentArrangement, Table};
+use scriptstring::ScriptString;
 use sha2::Digest;
 use std::collections::{HashMap, HashSet};
 use steel::SteelErr;
@@ -13,11 +14,10 @@ use steel::{
     SteelVal,
     rvals::{Custom, FromSteelVal, IntoSteelVal},
 };
-use super::DisplayTable;
 pub mod scriptstring;
-use steel_derive::Steel;
 use steel::steel_vm::builtin::BuiltInModule;
 use steel::steel_vm::register_fn::RegisterFn;
+use steel_derive::Steel;
 
 fn use_default_if_exists(
     default: HashMap<String, ParamValue>,
@@ -89,8 +89,6 @@ impl AttributeError {
     }
 }
 
-
-
 impl Process {
     pub fn new(
         attributes: HashMap<String, SteelVal>,
@@ -104,11 +102,10 @@ impl Process {
 
         let script = extract_attribute!(attributes, "script", ScriptString);
 
-        let script =
-            extract_attribute!(attributes, "script", ScriptString).ok_or_else(
-            || AttributeError::Required("name".to_string()).into_steel(),
-            )?;
-
+        let script = extract_attribute!(attributes, "script", ScriptString)
+            .ok_or_else(|| {
+                AttributeError::Required("name".to_string()).into_steel()
+            })?;
 
         // attributes from the config
         let merged_attributes =
@@ -130,14 +127,15 @@ impl Process {
 
         let container = None; // TODO need to add container handling
 
-        let hash = calculate_hash(&name, &script.to_string(), &container, &shell);
+        let hash =
+            calculate_hash(&name, &script.to_string(), &container, &shell);
 
         let d = Process {
             attributes: merged_attributes.clone(),
             hash,
             script: script.clone(),
             name,
-            inward_edges: get_inward_edges(script),
+            inward_edges: get_inward_edges(&script),
             container,
             time,
             memory,
@@ -145,18 +143,25 @@ impl Process {
             hpc_runtime: None,
             container_runtime: None,
             work_dir,
+            generators: get_generators(&script),
         };
 
         Ok(d)
     }
-    pub fn as_derivation(&self) -> Derivation{
-        Derivation::Process(self.clone()) 
-
+    pub fn as_derivation(self) -> Derivation {
+        // if any generators exist in the interpolations, then
+        // return a generator wrapping a process
+        match self.generators {
+            Some(_) => {
+                return Generator::new_process(self).into_derivation();
+            }
+            None => return Derivation::Process(self),
+        }
     }
     pub fn script(&self) -> String {
-            self.script
-                .to_string()
-                .replace(super::super::OUT_PLACEHOLDER, &self.hash.to_string())
+        self.script
+            .to_string()
+            .replace(super::super::OUT_PLACEHOLDER, &self.hash.to_string())
     }
 
     pub fn display(&self) -> DisplayTable {
@@ -181,26 +186,20 @@ impl Process {
 
     // TODO need to rewrite this to have its own method
     pub fn run(&self) -> Option<evaluator::HPCRuntime> {
-            evaluator::run_derivation(self)
+        evaluator::run_derivation(self)
     }
 }
 
-
-pub fn register_steel_functions(module: &mut BuiltInModule){
+pub fn register_steel_functions(module: &mut BuiltInModule) {
     module.register_type::<Process>("Process?");
     module.register_fn("Process::new", Process::new);
     module.register_fn("Process::as_derivation", Process::as_derivation);
 }
 
-
-
 // have to make custom type because can't implement external type for type from different crate
 impl Custom for Process {
     fn fmt(&self) -> Option<std::result::Result<String, std::fmt::Error>> {
-        Some(Ok(format!(
-            "{}",
-            self.hash
-        )))
+        Some(Ok(format!("{}", self.hash)))
     }
 }
 
@@ -245,10 +244,27 @@ fn extract_derivation_hashes_recursive(
     }
 }
 
-fn get_inward_edges(script: ScriptString) -> Vec<DerivationHash> {
+fn get_inward_edges(script: &ScriptString) -> Vec<DerivationHash> {
     script
         .interpolations
         .iter()
         .flat_map(|i| extract_derivation_hashes(i.clone()))
-        .collect::<HashSet<DerivationHash>>().into_iter().collect()
+        .collect::<HashSet<DerivationHash>>()
+        .into_iter()
+        .collect()
+}
+
+fn get_generators(script: &ScriptString) -> Option<Vec<Generator>> {
+    let mut generators = vec![];
+    for i in script.interpolations.iter() {
+        if let Ok(Derivation::Generator(g)) = Derivation::from_steelval(i) {
+            generators.push(g)
+        }
+    }
+
+    if !generators.is_empty() {
+        Some(generators)
+    } else {
+        None
+    }
 }

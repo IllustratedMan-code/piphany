@@ -36,6 +36,7 @@ fn main() -> Result<(), SteelErr>{
             "builtin/main.scm",
         )
         .expect("Couldn't run main!");
+
     if args.repl {
         let repl = steel_repl::Repl::new(engine)
             .with_startup(":? for help".bright_yellow().bold());

@@ -12,6 +12,10 @@
   (~> metadata 
       (with-column "derivations" (list script script2))))
 
+(define hi2 (process! name : "first3-process"
+		      container : "yo" script : #<<''
+		      hi''))
+
 (define proc1
   (process!
    name : "first-process"
@@ -25,6 +29,8 @@
    )
   )
 
+(define proc1-generator (expand proc1 "*.txt" #f))
+
 
 (define proc2
   (process!
@@ -32,12 +38,12 @@
    time : (hours 5)
    memory : (GB 5)
    script : #<<''
-   cat {{proc1}}/result.txt > {{out}}
+   cat {{proc1-generator}} > {{out}}
    '')
-  )
+  ) ;; proc2 is now a generator because proc1-generator is used in it
 
 
 (output!
- "results/proc2-result.txt" : proc2
+ "results/proc2-results" : proc2 ;; should generators be allowed here? or should they first be collasped
  "results/proc1" : proc1
  )

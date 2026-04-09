@@ -20,6 +20,7 @@ use derivation::DerivationHash;
 pub struct DerivationGraph {
     pub nodes: HashMap<derivation::DerivationHash, derivation::Derivation>,
     pub outputs: Option<derivation::Derivation>,
+    pub tests: Vec<derivation::Derivation>,
     pub config: Config,
 }
 
@@ -37,7 +38,8 @@ impl DerivationGraph {
         let dag = DerivationGraph {
             nodes: HashMap::<DerivationHash, derivation::Derivation>::new(),
             config,
-            outputs: None
+            outputs: None,
+            tests: vec![]
         };
         let mut module = BuiltInModule::new("DerivationGraph");
 
@@ -58,6 +60,7 @@ impl DerivationGraph {
         module.register_fn("display_nodes", DerivationGraph::display_nodes);
         module.register_fn("add_output", DerivationGraph::add_outputs);
         module.register_fn("add_derivation", DerivationGraph::add_derivation);
+        module.register_fn("add_test", DerivationGraph::add_test);
         module.register_type::<Derivation>("Derivation?");
         module.register_value(
             "config",
@@ -97,6 +100,10 @@ impl DerivationGraph {
 
     pub fn add_outputs(&mut self, derivation: derivation::Output){
         self.outputs = Some(Derivation::Output(derivation));
+    }
+
+    pub fn add_test(&mut self, derivation: derivation::Test){
+        self.tests.push(Derivation::Test(derivation))
     }
 
 }

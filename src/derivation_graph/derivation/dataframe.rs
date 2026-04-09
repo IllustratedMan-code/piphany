@@ -8,7 +8,6 @@ use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::{ContentArrangement, Table};
 use polars::prelude::*;
-use polars_utils::aliases::PlSeedableRandomStateQuality;
 use sha2::Digest;
 use steel::SteelErr;
 use steel::SteelVal;

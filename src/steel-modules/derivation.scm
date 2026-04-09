@@ -14,13 +14,26 @@
 	 Dataframe
 	 as-csv
 	 subset
+	 expand
 	 ) ;; also subset!, there is a weird problem with leaky namespaces
 
 
 (require-builtin DerivationGraph as DG::)
 
+(define (expand proc glob regex)
+  
+  (let ((derivation (~> (DG::Generator::new proc glob regex)
+			(DG::Generator::into_derivation))))
+    (DG::add_derivation DG::graph derivation)
+    derivation))
+  
 (define read-csv DG::df::read-csv)
-(define as-csv DG::df::as-csv)
+(define (as-csv dataframe sep ext)
+  (let ((derivation (DG::df::as-csv dataframe sep ext)))
+    (DG::add_derivation DG::graph derivation)
+    derivation
+    )
+  )
 (define select DG::df::select)
 (define subset DG::df::subset)
 (define with-column DG::df::with-column)
@@ -53,6 +66,7 @@
 ;; need to report bugs here, looks like syntax case macros don't get picked up by the
 ;; module system correctly
 ;; errors are also not reported correctly
+;; https://github.com/mattwparas/steel/issues/645
 (define-syntax subset!
   (lambda (stx)
     (syntax-case stx ()
